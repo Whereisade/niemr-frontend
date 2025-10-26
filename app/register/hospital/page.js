@@ -9,7 +9,7 @@ import { api } from "@/lib/api-client";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
-const ENDPOINT = "accounts/register/hospital/";
+const ENDPOINT = "api/accounts/register/"; // DRF path (POST only)
 
 export default function HospitalRegisterPage() {
   const router = useRouter();
@@ -38,7 +38,7 @@ export default function HospitalRegisterPage() {
   };
 
   const submit = async (e) => {
-    e.preventDefault();
+    e.preventDefault();            // ✅ stop browser GET
     setErr("");
 
     if (form.password !== form.confirm_password) {
@@ -49,6 +49,7 @@ export default function HospitalRegisterPage() {
       setErr("You must accept the terms.");
       return;
     }
+
     setLoading(true);
     try {
       const payload = {
@@ -70,12 +71,30 @@ export default function HospitalRegisterPage() {
         },
       };
 
-      const res = await api.post(ENDPOINT, payload);
+      // ✅ POST via proxy (not a Link, not a form action)
+      const res = await fetch(`/api/niemr/${ENDPOINT}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify(payload),
+      });
+
       if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        setErr(data.detail || data.error || "Registration failed.");
+        // show backend validation
+        const text = await res.text();
+        try {
+          const data = JSON.parse(text);
+          setErr(
+            data.detail ||
+            data.error ||
+            Object.entries(data).map(([k,v]) => `${k}: ${Array.isArray(v)?v.join(", "):v}`).join("\n") ||
+            "Registration failed."
+          );
+        } catch {
+          setErr(text || "Registration failed.");
+        }
         return;
       }
+
       router.push("/login/hospital?registered=1");
     } finally {
       setLoading(false);

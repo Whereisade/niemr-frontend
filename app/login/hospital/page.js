@@ -8,8 +8,6 @@ import PasswordInput from "@/components/PasswordInput";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 
-const ENDPOINT = "/api/auth/login";
-
 export default function HospitalLoginPage() {
   const router = useRouter();
   const sp = useSearchParams();
@@ -29,7 +27,7 @@ export default function HospitalLoginPage() {
     setErr("");
     setLoading(true);
     try {
-      const res = await fetch(ENDPOINT, {
+      const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: form.email, password: form.password }),

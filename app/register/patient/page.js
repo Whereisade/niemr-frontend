@@ -9,7 +9,7 @@ import { api } from "@/lib/api-client";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
-const ENDPOINT = "accounts/register/patient/";
+const ENDPOINT = "api/patients/self-register/"; 
 
 export default function PatientRegisterPage() {
   const router = useRouter();

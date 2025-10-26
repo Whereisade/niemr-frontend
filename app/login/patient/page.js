@@ -8,8 +8,6 @@ import PasswordInput from "@/components/PasswordInput";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 
-const ENDPOINT = "/api/auth/login";
-
 export default function PatientLoginPage() {
   const router = useRouter();
   const [form, setForm] = useState({ email: "", password: "" });
@@ -22,7 +20,7 @@ export default function PatientLoginPage() {
     setErr("");
     setLoading(true);
     try {
-      const res = await fetch(ENDPOINT, {
+      const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: form.email, password: form.password }),
