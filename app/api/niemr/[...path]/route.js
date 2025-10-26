@@ -5,15 +5,19 @@ import { ACCESS_COOKIE } from "@/lib/cookie-auth";
 const BASE = process.env.NEXT_PUBLIC_API_BASE_URL;
 
 /**
- * Robust proxy for Next 16:
- * - Avoids async `params` by deriving the path from req.url
- * - Awaits cookies() (Next 16 API)
- * - Preserves query string
+ * Next 16 safe proxy with trailing-slash normalization for Django.
  */
 async function forward(req, _ctx, method) {
   const inUrl = new URL(req.url);
-  // strip our proxy prefix: /api/niemr/
-  const proxiedPath = inUrl.pathname.replace(/^\/api\/niemr\//, "");
+
+  // Strip our proxy prefix: /api/niemr/
+  let proxiedPath = inUrl.pathname.replace(/^\/api\/niemr\//, ""); // e.g. "api/accounts/register" or "api/accounts/register/"
+  // Remove any accidental leading slashes
+  proxiedPath = proxiedPath.replace(/^\/+/, "");
+
+  // ✅ Ensure Django-friendly trailing slash
+  if (!proxiedPath.endsWith("/")) proxiedPath += "/";
+
   const targetUrl = `${BASE}/${proxiedPath}${inUrl.search || ""}`;
 
   const jar = await cookies(); // Next 16: async

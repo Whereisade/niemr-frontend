@@ -3,7 +3,7 @@ import { cookies } from "next/headers";
 import { ACCESS_COOKIE, REFRESH_COOKIE, cookieOptionsAccess } from "@/lib/cookie-auth";
 
 export async function POST() {
-  const jar = cookies();
+  const jar = await cookies();
   const refresh = jar.get(REFRESH_COOKIE)?.value;
   if (!refresh) return NextResponse.json({ error: "No refresh token" }, { status: 401 });
 
@@ -14,9 +14,7 @@ export async function POST() {
     cache: "no-store",
   });
 
-  if (!resp.ok) {
-    return NextResponse.json({ error: "Refresh failed" }, { status: 401 });
-  }
+  if (!resp.ok) return NextResponse.json({ error: "Refresh failed" }, { status: 401 });
 
   const data = await resp.json(); // { access }
   if (!data?.access) return NextResponse.json({ error: "Invalid refresh response" }, { status: 500 });

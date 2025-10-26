@@ -3,9 +3,6 @@
 import { useState } from "react";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
-import FormInput from "@/components/FormInput";
-import PasswordInput from "@/components/PasswordInput";
-import { api } from "@/lib/api-client";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
@@ -27,10 +24,7 @@ export default function ProviderRegisterPage() {
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState("");
 
-  const onChange = (e) => {
-    const { name, value } = e.target;
-    setForm((f) => ({ ...f, [name]: value }));
-  };
+  const onChange = (e) => setForm((f) => ({ ...f, [e.target.name]: e.target.value }));
 
   const submit = async (e) => {
     e.preventDefault();
@@ -51,13 +45,30 @@ export default function ProviderRegisterPage() {
         specialty: form.specialty || null,
         password: form.password,
       };
-      const res = await api.post(ENDPOINT, payload);
+
+      const res = await fetch(`/api/niemr/${ENDPOINT}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify(payload),
+      });
+
       if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        setErr(data.detail || data.error || "Registration failed.");
-        return;
+        const t = await res.text();
+        try {
+          const j = JSON.parse(t);
+          throw new Error(
+            j.detail ||
+            Object.entries(j).map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(", ") : v}`).join("\n") ||
+            "Registration failed"
+          );
+        } catch {
+          throw new Error(t || "Registration failed");
+        }
       }
+
       router.push("/login/provider?registered=1");
+    } catch (e2) {
+      setErr(e2.message || "Registration failed");
     } finally {
       setLoading(false);
     }
@@ -72,13 +83,9 @@ export default function ProviderRegisterPage() {
 
         <form onSubmit={submit} className="mt-8 grid gap-5">
           <label className="block">
-            <span className="text-sm text-slate-700">Role *</span>
-            <select
-              name="role"
-              value={form.role}
-              onChange={onChange}
-              className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2"
-            >
+            <span className="text-sm">Role *</span>
+            <select name="role" value={form.role} onChange={onChange}
+                    className="mt-1 w-full rounded-xl border px-3 py-2">
               <option value="doctor">Doctor</option>
               <option value="nurse">Nurse</option>
               <option value="pharmacist">Pharmacist</option>
@@ -87,29 +94,57 @@ export default function ProviderRegisterPage() {
           </label>
 
           <div className="grid md:grid-cols-2 gap-4">
-            <FormInput label="First Name" name="first_name" required value={form.first_name} onChange={onChange} />
-            <FormInput label="Last Name" name="last_name" required value={form.last_name} onChange={onChange} />
-            <FormInput label="Email" name="email" type="email" required value={form.email} onChange={onChange} />
-            <FormInput label="Phone" name="phone" required value={form.phone} onChange={onChange} />
-            <FormInput label="License Number" name="license_no" required value={form.license_no} onChange={onChange} />
-            <FormInput label="Specialty (optional)" name="specialty" value={form.specialty} onChange={onChange} />
-            <PasswordInput label="Password" name="password" required value={form.password} onChange={onChange} />
-            <PasswordInput label="Confirm Password" name="confirm_password" required value={form.confirm_password} onChange={onChange} />
+            <label className="block">
+              <span className="text-sm">First Name *</span>
+              <input name="first_name" required value={form.first_name} onChange={onChange}
+                     className="mt-1 w-full rounded-xl border px-3 py-2" />
+            </label>
+            <label className="block">
+              <span className="text-sm">Last Name *</span>
+              <input name="last_name" required value={form.last_name} onChange={onChange}
+                     className="mt-1 w-full rounded-xl border px-3 py-2" />
+            </label>
+            <label className="block">
+              <span className="text-sm">Email *</span>
+              <input type="email" name="email" required value={form.email} onChange={onChange}
+                     className="mt-1 w-full rounded-xl border px-3 py-2" />
+            </label>
+            <label className="block">
+              <span className="text-sm">Phone *</span>
+              <input name="phone" required value={form.phone} onChange={onChange}
+                     className="mt-1 w-full rounded-xl border px-3 py-2" />
+            </label>
+            <label className="block">
+              <span className="text-sm">License Number *</span>
+              <input name="license_no" required value={form.license_no} onChange={onChange}
+                     className="mt-1 w-full rounded-xl border px-3 py-2" />
+            </label>
+            <label className="block">
+              <span className="text-sm">Specialty (optional)</span>
+              <input name="specialty" value={form.specialty} onChange={onChange}
+                     className="mt-1 w-full rounded-xl border px-3 py-2" />
+            </label>
+            <label className="block">
+              <span className="text-sm">Password *</span>
+              <input type="password" name="password" required value={form.password} onChange={onChange}
+                     className="mt-1 w-full rounded-xl border px-3 py-2" />
+            </label>
+            <label className="block">
+              <span className="text-sm">Confirm Password *</span>
+              <input type="password" name="confirm_password" required value={form.confirm_password} onChange={onChange}
+                     className="mt-1 w-full rounded-xl border px-3 py-2" />
+            </label>
           </div>
 
-          {err && <p className="text-sm text-red-600">{err}</p>}
+          {err && <p className="text-sm text-red-600 whitespace-pre-wrap">{err}</p>}
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="inline-flex items-center justify-center rounded-xl bg-blue-600 text-white px-5 py-3 hover:bg-blue-700 disabled:opacity-60"
-          >
+          <button type="submit" disabled={loading}
+                  className="inline-flex items-center justify-center rounded-xl bg-blue-600 text-white px-5 py-3 hover:bg-blue-700 disabled:opacity-60">
             {loading ? "Creating..." : "Create Provider Account"}
           </button>
 
           <p className="text-sm text-slate-600">
-            Already have an account?{" "}
-            <Link href="/login/provider" className="text-blue-700">Login</Link>
+            Already have an account? <Link href="/login/provider" className="text-blue-700">Login</Link>
           </p>
         </form>
       </main>
