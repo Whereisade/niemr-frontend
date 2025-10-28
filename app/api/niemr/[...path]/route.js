@@ -1,3 +1,4 @@
+// app/api/niemr/[...path]/route.js
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { ACCESS_COOKIE } from "@/lib/cookie-auth";
@@ -10,14 +11,17 @@ async function forward(req, _ctx, method) {
   const inUrl = new URL(req.url);
   // strip our proxy prefix
   let proxiedPath = inUrl.pathname.replace(/^\/api\/niemr\//, "").replace(/^\/+/, "");
-  // DRF: prefer a trailing slash on resources
+  // DRF: prefer a trailing slash on resources (tweak if your API doesn’t)
   if (!proxiedPath.endsWith("/")) proxiedPath += "/";
 
   const search = inUrl.search || "";
   const targetUrl = `${BASE}/${proxiedPath}${search}`.replace(/([^:]\/)\/+/g, "$1");
 
   const ct = req.headers.get("content-type") || "";
-  const access = cookies().get(ACCESS_COOKIE)?.value;
+
+  // 🔧 IMPORTANT: cookies() is now a Promise — await it
+  const cookieStore = await cookies();
+  const access = cookieStore.get(ACCESS_COOKIE)?.value;
 
   const init = {
     method,
@@ -26,12 +30,20 @@ async function forward(req, _ctx, method) {
       ...(ct ? { "Content-Type": ct } : {}),
       ...(access ? { Authorization: `Bearer ${access}` } : {}),
     },
-    body: ["POST", "PUT", "PATCH", "DELETE"].includes(method) ? await req.arrayBuffer() : undefined,
+    body: ["POST", "PUT", "PATCH", "DELETE"].includes(method)
+      ? await req.arrayBuffer()
+      : undefined,
     cache: "no-store",
     redirect: "follow",
   };
 
-  const upstream = await fetch(targetUrl, init);
+  let upstream;
+  try {
+    upstream = await fetch(targetUrl, init);
+  } catch (e) {
+    return NextResponse.json({ error: "Upstream network error", detail: String(e) }, { status: 502 });
+  }
+
   const resCT = upstream.headers.get("content-type") || "application/octet-stream";
   const buf = await upstream.arrayBuffer();
   return new NextResponse(buf, { status: upstream.status, headers: { "content-type": resCT } });
