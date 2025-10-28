@@ -1,23 +1,26 @@
-import Link from "next/link";
-import Navbar from "@/components/Navbar";
-import Footer from "@/components/Footer";
-import FeatureCard from "@/components/FeatureCard";
-
-export default function RegisterChooser() {
+export default function Register() {
   return (
-    <>
-      <Navbar />
-      <main className="mx-auto max-w-5xl px-4 py-14">
-        <h1 className="text-3xl font-bold">Create your NIEMR account</h1>
-        <p className="text-slate-600 mt-2">Pick the option that fits you.</p>
+    <div className="min-h-[calc(100dvh-68px)] bg-gradient-to-b from-white to-blue-50">
+      <div className="mx-auto max-w-3xl px-4 py-16">
+        <h1 className="h2">Create your NIEMR account</h1>
+        <p className="mt-2 muted">
+          We’ll build the actual registration flow (role-aware) in the next step.
+        </p>
 
-        <div className="grid md:grid-cols-3 gap-6 mt-8">
-          <Link href="/register/hospital"><FeatureCard title="Hospital / Facility" desc="Super Admin registers the facility." /></Link>
-          <Link href="/register/provider"><FeatureCard title="Independent Provider" desc="Doctor/Nurse/Pharmacist/Lab Scientist." /></Link>
-          <Link href="/register/patient"><FeatureCard title="Patient" desc="Self-register and manage uploads & reminders." /></Link>
+        <div className="card mt-8">
+          <div className="card-pad">
+            <div className="grid sm:grid-cols-3 gap-4">
+              <a href="/register/hospital" className="btn btn-outline text-center">Hospital/Facility</a>
+              <a href="/register/provider" className="btn btn-outline text-center">Independent Provider</a>
+              <a href="/register/patient" className="btn btn-outline text-center">Patient</a>
+            </div>
+          </div>
         </div>
-      </main>
-      <Footer />
-    </>
+
+        <div className="mt-6">
+          <a href="/" className="text-blue-700 hover:underline">← Back to Home</a>
+        </div>
+      </div>
+    </div>
   );
 }

@@ -2,44 +2,39 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { ACCESS_COOKIE } from "@/lib/cookie-auth";
 
-const BASE = process.env.NEXT_PUBLIC_API_BASE_URL;
+const BASE = (process.env.NEXT_PUBLIC_API_BASE_URL || "").replace(/\/+$/, "");
 
-/**
- * Next 16 safe proxy with trailing-slash normalization for Django.
- */
 async function forward(req, _ctx, method) {
+  if (!BASE) return NextResponse.json({ error: "API base not configured" }, { status: 500 });
+
   const inUrl = new URL(req.url);
-
-  // Strip our proxy prefix: /api/niemr/
-  let proxiedPath = inUrl.pathname.replace(/^\/api\/niemr\//, ""); // e.g. "api/accounts/register" or "api/accounts/register/"
-  // Remove any accidental leading slashes
-  proxiedPath = proxiedPath.replace(/^\/+/, "");
-
-  // ✅ Ensure Django-friendly trailing slash
+  // strip our proxy prefix
+  let proxiedPath = inUrl.pathname.replace(/^\/api\/niemr\//, "").replace(/^\/+/, "");
+  // DRF: prefer a trailing slash on resources
   if (!proxiedPath.endsWith("/")) proxiedPath += "/";
 
-  const targetUrl = `${BASE}/${proxiedPath}${inUrl.search || ""}`;
+  const search = inUrl.search || "";
+  const targetUrl = `${BASE}/${proxiedPath}${search}`.replace(/([^:]\/)\/+/g, "$1");
 
-  const jar = await cookies(); // Next 16: async
-  const access = jar.get(ACCESS_COOKIE)?.value;
+  const ct = req.headers.get("content-type") || "";
+  const access = cookies().get(ACCESS_COOKIE)?.value;
 
-  const contentType = req.headers.get("content-type") || "";
   const init = {
     method,
     headers: {
-      ...(contentType.includes("application/json") ? { "Content-Type": "application/json" } : {}),
       Accept: req.headers.get("accept") || "*/*",
+      ...(ct ? { "Content-Type": ct } : {}),
       ...(access ? { Authorization: `Bearer ${access}` } : {}),
     },
-    body: ["POST","PUT","PATCH","DELETE"].includes(method) ? await req.arrayBuffer() : undefined,
+    body: ["POST", "PUT", "PATCH", "DELETE"].includes(method) ? await req.arrayBuffer() : undefined,
     cache: "no-store",
     redirect: "follow",
   };
 
-  const res = await fetch(targetUrl, init);
-  const resCT = res.headers.get("content-type") || "application/octet-stream";
-  const data = await res.arrayBuffer();
-  return new NextResponse(data, { status: res.status, headers: { "content-type": resCT } });
+  const upstream = await fetch(targetUrl, init);
+  const resCT = upstream.headers.get("content-type") || "application/octet-stream";
+  const buf = await upstream.arrayBuffer();
+  return new NextResponse(buf, { status: upstream.status, headers: { "content-type": resCT } });
 }
 
 export const GET    = (req, ctx) => forward(req, ctx, "GET");
@@ -47,3 +42,4 @@ export const POST   = (req, ctx) => forward(req, ctx, "POST");
 export const PUT    = (req, ctx) => forward(req, ctx, "PUT");
 export const PATCH  = (req, ctx) => forward(req, ctx, "PATCH");
 export const DELETE = (req, ctx) => forward(req, ctx, "DELETE");
+export async function OPTIONS() { return NextResponse.json({}, { status: 200 }); }

@@ -1,17 +1,38 @@
 @import "tailwindcss";
 
-/* Brand helpers */
-:root {
-  --niemr-blue-600: #2563eb;
-  --niemr-blue-700: #1d4ed8;
-  --niemr-blue-800: #1e40af;
+/* NIEMR tokens */
+:root{
+  --niemr-blue-600:#2563eb;
+  --niemr-blue-700:#1d4ed8;
+  --niemr-blue-50:#eff6ff;
+  --niemr-slate-800:#1f2937;
+  --niemr-slate-700:#334155;
 }
 
 html, body { height: 100%; }
+body { color: var(--niemr-slate-800); }
 
-.bg-hero {
-  background:
-    radial-gradient(1200px 600px at 20% 10%, rgba(37,99,235,0.15), transparent 70%),
-    radial-gradient(800px 400px at 80% 0%, rgba(29,78,216,0.12), transparent 70%),
-    #ffffff;
+.bg-niemr {
+  background: radial-gradient(1000px 600px at 20% 0%, var(--niemr-blue-50) 0%, #fff 60%);
 }
+
+.btn { @apply inline-flex items-center justify-center rounded-xl px-5 py-3 font-medium shadow-sm transition; }
+.btn-primary {
+  background: var(--niemr-blue-600); color: #fff;
+}
+.btn-primary:hover { background: var(--niemr-blue-700); }
+
+.btn-outline {
+  @apply border bg-white;
+  border-color: var(--niemr-blue-600); color: var(--niemr-blue-600);
+}
+.btn-outline:hover { background: var(--niemr-blue-50); }
+
+/* Cards */
+.card { @apply rounded-2xl border bg-white shadow-sm; }
+.card-pad { @apply p-6; }
+
+/* Typography helpers */
+.h1 { @apply text-4xl md:text-5xl font-extrabold leading-tight; }
+.h2 { @apply text-2xl md:text-3xl font-bold; }
+.muted { @apply text-slate-600; }

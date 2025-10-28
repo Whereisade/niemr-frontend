@@ -1,23 +1,25 @@
-import Link from "next/link";
-import Navbar from "@/components/Navbar";
-import Footer from "@/components/Footer";
-import FeatureCard from "@/components/FeatureCard";
-
 export default function LoginChooser() {
   return (
-    <>
-      <Navbar />
-      <main className="mx-auto max-w-5xl px-4 py-14">
-        <h1 className="text-3xl font-bold">Login</h1>
-        <p className="text-slate-600 mt-2">Select your portal to continue.</p>
+    <div className="min-h-[calc(100dvh-68px)] bg-gradient-to-b from-blue-50 to-white">
+      <div className="mx-auto max-w-7xl px-4 py-16">
+        <h1 className="h2">Choose your login type</h1>
+        <p className="mt-2 muted">Hospital/Facility, Independent Provider, or Patient.</p>
 
-        <div className="grid md:grid-cols-3 gap-6 mt-8">
-          <Link href="/login/hospital"><FeatureCard title="Hospital / Facility" desc="Admins, Doctors, Nurses, Lab, Pharmacy." /></Link>
-          <Link href="/login/provider"><FeatureCard title="Independent Provider" desc="Solo practice portal." /></Link>
-          <Link href="/login/patient"><FeatureCard title="Patient" desc="Access your personal or dependent records." /></Link>
+        <div className="mt-8 grid sm:grid-cols-3 gap-4">
+          <a href="/login/hospital" className="card card-pad hover:shadow-md transition">
+            <div className="text-blue-700 font-semibold">Hospital</div>
+            <p className="mt-2 text-sm text-slate-700">Admins, Doctors, Nurses, Lab, Pharmacy</p>
+          </a>
+          <a href="/login/provider" className="card card-pad hover:shadow-md transition">
+            <div className="text-blue-700 font-semibold">Provider</div>
+            <p className="mt-2 text-sm text-slate-700">Independent practitioners</p>
+          </a>
+          <a href="/login/patient" className="card card-pad hover:shadow-md transition">
+            <div className="text-blue-700 font-semibold">Patient</div>
+            <p className="mt-2 text-sm text-slate-700">Personal & dependents access</p>
+          </a>
         </div>
-      </main>
-      <Footer />
-    </>
+      </div>
+    </div>
   );
 }
