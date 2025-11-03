@@ -1,57 +1,78 @@
 // app/api/niemr/[...path]/route.js
-import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
-import { ACCESS_COOKIE } from "@/lib/cookie-auth";
+export const dynamic = "force-dynamic";
 
-const BASE = (process.env.NEXT_PUBLIC_API_BASE_URL || "").replace(/\/+$/, "");
+const API_BASE = (process.env.NEXT_PUBLIC_API_BASE_URL || "").replace(/\/+$/, "");
+const HEADER_TYPE = (process.env.NIEMR_AUTH_HEADER_TYPE || "Bearer").trim();
 
-async function forward(req, _ctx, method) {
-  if (!BASE) return NextResponse.json({ error: "API base not configured" }, { status: 500 });
-
-  const inUrl = new URL(req.url);
-  // strip our proxy prefix
-  let proxiedPath = inUrl.pathname.replace(/^\/api\/niemr\//, "").replace(/^\/+/, "");
-  // DRF: prefer a trailing slash on resources (tweak if your API doesn’t)
-  if (!proxiedPath.endsWith("/")) proxiedPath += "/";
-
-  const search = inUrl.search || "";
-  const targetUrl = `${BASE}/${proxiedPath}${search}`.replace(/([^:]\/)\/+/g, "$1");
-
-  const ct = req.headers.get("content-type") || "";
-
-  // 🔧 IMPORTANT: cookies() is now a Promise — await it
-  const cookieStore = await cookies();
-  const access = cookieStore.get(ACCESS_COOKIE)?.value;
-
-  const init = {
-    method,
-    headers: {
-      Accept: req.headers.get("accept") || "*/*",
-      ...(ct ? { "Content-Type": ct } : {}),
-      ...(access ? { Authorization: `Bearer ${access}` } : {}),
-    },
-    body: ["POST", "PUT", "PATCH", "DELETE"].includes(method)
-      ? await req.arrayBuffer()
-      : undefined,
-    cache: "no-store",
-    redirect: "follow",
-  };
-
-  let upstream;
-  try {
-    upstream = await fetch(targetUrl, init);
-  } catch (e) {
-    return NextResponse.json({ error: "Upstream network error", detail: String(e) }, { status: 502 });
-  }
-
-  const resCT = upstream.headers.get("content-type") || "application/octet-stream";
-  const buf = await upstream.arrayBuffer();
-  return new NextResponse(buf, { status: upstream.status, headers: { "content-type": resCT } });
+export async function GET(req)    { return forward(req); }
+export async function POST(req)   { return forward(req); }
+export async function PUT(req)    { return forward(req); }
+export async function PATCH(req)  { return forward(req); }
+export async function DELETE(req) { return forward(req); }
+export async function OPTIONS() {
+  return new Response("{}", { status: 200, headers: { "Content-Type": "application/json" } });
 }
 
-export const GET    = (req, ctx) => forward(req, ctx, "GET");
-export const POST   = (req, ctx) => forward(req, ctx, "POST");
-export const PUT    = (req, ctx) => forward(req, ctx, "PUT");
-export const PATCH  = (req, ctx) => forward(req, ctx, "PATCH");
-export const DELETE = (req, ctx) => forward(req, ctx, "DELETE");
-export async function OPTIONS() { return NextResponse.json({}, { status: 200 }); }
+async function forward(req) {
+  if (!API_BASE) return json({ error: "API base not configured" }, 500);
+
+  const inUrl = new URL(req.url);
+  let proxiedPath = inUrl.pathname.replace(/^\/api\/niemr\//, "").replace(/^\/+/, "");
+  // DRF endpoints want trailing slash
+  if (!/\.[a-z0-9]+$/i.test(proxiedPath) && !proxiedPath.endsWith("/")) proxiedPath += "/";
+  const targetUrl = `${API_BASE}/${proxiedPath}${inUrl.search || ""}`.replace(/([^:]\/)\/+/g, "$1");
+
+  const headers = new Headers();
+  const ctIn = req.headers.get("content-type") || "";
+  // ✅ Forward whatever Content-Type came from the browser (includes multipart boundary)
+  if (ctIn) headers.set("Content-Type", ctIn);
+  headers.set("Accept", req.headers.get("accept") || "*/*");
+
+  // Attach Authorization only if cookie exists (never block if missing)
+  const cookieHeader = req.headers.get("cookie") || "";
+  const token = readCookie(cookieHeader, "niemr_access");
+  if (token && token !== "undefined" && token !== "null") {
+    headers.set("Authorization", `${HEADER_TYPE} ${token}`);
+  }
+
+  const method = req.method || "GET";
+  const needsBody = ["POST", "PUT", "PATCH", "DELETE"].includes(method);
+  const body = needsBody ? await req.arrayBuffer() : undefined;
+
+  // Timeout guard
+  const ac = new AbortController();
+  const to = setTimeout(() => ac.abort("Proxy timeout (25s)"), 25_000);
+
+  try {
+    const upstream = await fetch(targetUrl, {
+      method,
+      headers,
+      body,
+      cache: "no-store",
+      redirect: "follow",
+      signal: ac.signal,
+    });
+    clearTimeout(to);
+
+    const outHeaders = new Headers({
+      "Content-Type": upstream.headers.get("content-type") || "application/json",
+      "x-proxy-target": targetUrl,
+    });
+    const buf = await upstream.arrayBuffer();
+    return new Response(buf, { status: upstream.status, headers: outHeaders });
+  } catch (err) {
+    clearTimeout(to);
+    return json(
+      { error: "Upstream fetch failed", detail: String(err?.message || err), targetUrl },
+      /timeout/i.test(String(err?.message)) ? 504 : 502
+    );
+  }
+}
+
+function readCookie(cookieHeader, name) {
+  const m = (`; ${cookieHeader}`).match(new RegExp(`;\\s*${name}=([^;]+)`));
+  return m ? decodeURIComponent(m[1]) : "";
+}
+function json(obj, status = 200) {
+  return new Response(JSON.stringify(obj), { status, headers: { "Content-Type": "application/json" } });
+}
