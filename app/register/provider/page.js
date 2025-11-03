@@ -1,131 +1,119 @@
 "use client";
-import { useState } from "react";
+
+import { useEffect, useMemo, useState } from "react";
 import { Field, Input } from "@/components/forms/Field";
 
-const e164 = /^\+\d{1,3}\d{6,14}$/; // e.g. +2348012345678
+const E164 = /^\+\d{1,3}\d{6,14}$/; // +2348012345678
+
+const PROVIDER_TYPES = [
+  { value: "DOCTOR", label: "Medical Doctor" },
+  { value: "NURSE", label: "Nurse" },
+  { value: "PHARMACIST", label: "Pharmacist" },
+  { value: "LAB_SCIENTIST", label: "Medical Lab Scientist" },
+  { value: "DENTIST", label: "Dentist" },
+  { value: "OPTOMETRIST", label: "Optometrist" },
+  { value: "PHYSIOTHERAPIST", label: "Physiotherapist" },
+  { value: "OTHER", label: "Other" },
+];
+
+const COUNCILS = [
+  { value: "MDCN", label: "Medical & Dental Council" },
+  { value: "NMCN", label: "Nursing & Midwifery Council" },
+  { value: "PCN",  label: "Pharmacists Council" },
+  { value: "MLSCN",label: "Med. Lab. Science Council" },
+  { value: "RADI", label: "Radiographers Board" },
+  { value: "OTHER",label: "Other" },
+];
 
 export default function RegisterProvider() {
-  const [form, setForm] = useState({
-    // user fields (your API typically needs these for account creation)
-    first_name: "",
-    last_name: "",
-    email: "",
-    password: "",
-    password2: "",
-
-    // ProviderProfile core (model-backed)
-    license_number: "",                 // REQUIRED
-    license_council: "",                // optional (default MDCN server-side)
-    provider_type: "",                  // optional (default DOCTOR server-side)
-    license_expiry: "",                 // optional (yyyy-mm-dd)
-
-    years_experience: "",               // optional (number)
-    bio: "",                            // optional
-
-    // Contact & address (optional)
-    phone: "",
-    country: "",
-    state: "",
-    lga: "",
-    address: "",
-
-    // Business (optional)
-    consultation_fee: "",               // optional (decimal)
-
-    // Specialties (optional): comma-separated IDs -> [1,2,3]
-    specialties: "",
-  });
-
+  const [specialties, setSpecialties] = useState([]); // [{id, name}]
   const [err, setErr] = useState("");
   const [sub, setSub] = useState(false);
-  const set = (k, v) => setForm((s) => ({ ...s, [k]: v }));
 
-  function buildPayload() {
-    // Required checks
-    if (!form.email || !form.password || !form.password2 || !form.first_name || !form.last_name) {
-      throw new Error("Please fill first name, last name, email, password and confirm password.");
-    }
-    if (form.password !== form.password2) {
-      throw new Error("Passwords do not match.");
-    }
-    if (!form.license_number) {
-      throw new Error("License number is required.");
-    }
-    if (form.phone && !e164.test(form.phone)) {
-      throw new Error("Phone must be E.164 (e.g. +2348012345678).");
-    }
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch("/api/niemr/api/facilities/specialties/", { cache: "no-store" });
+        if (res.ok) setSpecialties(await res.json());
+      } catch {}
+    })();
+  }, []);
 
-    // Map specialties "1,2,3" -> [1,2,3]
-    let specialties = undefined;
-    if (form.specialties.trim()) {
-      specialties = form.specialties
-        .split(",")
-        .map((s) => s.trim())
-        .filter(Boolean)
-        .map((s) => Number(s))
-        .filter((n) => !Number.isNaN(n));
-      if (!specialties.length) specialties = undefined;
-    }
-
-    // numeric coercions
-    const years_experience =
-      form.years_experience !== "" ? Math.max(0, parseInt(form.years_experience, 10) || 0) : undefined;
-    const consultation_fee =
-      form.consultation_fee !== "" ? Number(form.consultation_fee) : undefined;
-
-    // Only send fields the API may use; omit empty values
-    const payload = {
-      role: "provider",
-
-      // user profile
-      first_name: form.first_name,
-      last_name: form.last_name,
-      email: form.email,
-      password: form.password,
-      password2: form.password2,
-
-      // ProviderProfile core
-      license_number: form.license_number,
-      ...(form.license_council ? { license_council: form.license_council } : {}),
-      ...(form.provider_type ? { provider_type: form.provider_type } : {}),
-      ...(form.license_expiry ? { license_expiry: form.license_expiry } : {}),
-
-      ...(years_experience !== undefined ? { years_experience } : {}),
-      ...(form.bio ? { bio: form.bio } : {}),
-
-      // contact/address
-      ...(form.phone ? { phone: form.phone } : {}),
-      ...(form.country ? { country: form.country } : {}),
-      ...(form.state ? { state: form.state } : {}),
-      ...(form.lga ? { lga: form.lga } : {}),
-      ...(form.address ? { address: form.address } : {}),
-
-      // business
-      ...(consultation_fee !== undefined ? { consultation_fee } : {}),
-
-      // many-to-many
-      ...(specialties ? { specialties } : {}),
-    };
-
-    return payload;
+  function getSelectedOptions(selectEl) {
+    return Array.from(selectEl?.selectedOptions || []).map((o) => o.value);
   }
 
   async function onSubmit(e) {
     e.preventDefault();
     setErr("");
+
+    const f = new FormData(e.currentTarget);
+
+    // required checks (user + licensing)
+    const email = (f.get("email") || "").toString().trim();
+    const password = (f.get("password") || "").toString();
+    const first_name = (f.get("first_name") || "").toString().trim();
+    const last_name  = (f.get("last_name") || "").toString().trim();
+    const provider_type = (f.get("provider_type") || "").toString();
+    const license_council = (f.get("license_council") || "").toString();
+    const license_number  = (f.get("license_number") || "").toString().trim();
+
+    const phone = (f.get("phone") || "").toString().trim();
+    if (!email || !password || !first_name || !last_name || !provider_type || !license_council || !license_number) {
+      setErr("Fill all required fields (name, email, password, provider type, council, license number).");
+      return;
+    }
+    if (phone && !E164.test(phone)) {
+      setErr("Phone must be E.164, e.g. +2348012345678.");
+      return;
+    }
+
+    // specialties -> submit names (or IDs)
+    // Multi-select is rendered with name="specialties_names"
+    const selNames = getSelectedOptions(e.currentTarget.querySelector('select[name="specialties_names"]'));
+    f.delete("specialties_names");
+    // If your serializer expects NAMES:
+    selNames.forEach((name) => f.append("specialties", name));
+    // If your serializer expects IDs instead, use a select of ids and:
+    // selIds.forEach((id) => f.append("specialties", id));
+
+    // Documents: each pair as documents[i].kind + documents[i].file
+    // (Only append if a file is chosen)
+    const docRows = [
+      { kind: (f.get("doc1_kind") || "").toString(), file: f.get("doc1_file") },
+      { kind: (f.get("doc2_kind") || "").toString(), file: f.get("doc2_file") },
+      { kind: (f.get("doc3_kind") || "").toString(), file: f.get("doc3_file") },
+    ];
+    f.delete("doc1_kind"); f.delete("doc1_file");
+    f.delete("doc2_kind"); f.delete("doc2_file");
+    f.delete("doc3_kind"); f.delete("doc3_file");
+
+    let di = 0;
+    for (const row of docRows) {
+      if (row && row.file && (row.file instanceof File) && row.file.size > 0) {
+        f.append(`documents[${di}].kind`, row.kind || "LICENSE");
+        f.append(`documents[${di}].file`, row.file);
+        di += 1;
+      }
+    }
+
+    setSub(true);
     try {
-      const payload = buildPayload();
-      setSub(true);
-      const res = await fetch("/api/auth/register", {
+      // IMPORTANT: no headers; keep the browser's multipart boundary
+      const res = await fetch("/api/niemr/api/providers/self-register/", {
         method: "POST",
-        headers: { "Content-Type": "application/json", Accept: "application/json" },
-        body: JSON.stringify(payload),
+        body: f,
       });
+
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data?.error || "Registration failed");
+      if (!res.ok) {
+        const msg = data?.detail || data?.non_field_errors?.[0] || JSON.stringify(data);
+        throw new Error(msg || `Failed (${res.status})`);
+      }
+
       window.location.href = "/register/success?role=provider";
-    } catch (e) {
-      setErr(e.message || "Unable to register");
+    } catch (e2) {
+      setErr(e2.message || "Registration failed");
     } finally {
       setSub(false);
     }
@@ -138,142 +126,121 @@ export default function RegisterProvider() {
         <p className="mt-2 text-slate-700">For independent practitioners.</p>
 
         <div className="card mt-8">
-          <form className="card-pad" onSubmit={onSubmit}>
+          <form className="card-pad space-y-5" onSubmit={onSubmit} encType="multipart/form-data">
             {err && (
-              <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+              <div className="mb-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
                 {err}
               </div>
             )}
 
-            {/* Basic user info */}
+            {/* User (required) */}
             <div className="grid sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-slate-700">First Name</label>
-                <Input placeholder="John" value={form.first_name} onChange={(e) => set("first_name", e.target.value)} />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700">Last Name</label>
-                <Input placeholder="Smith" value={form.last_name} onChange={(e) => set("last_name", e.target.value)} />
-              </div>
+              <Field label="First Name"><Input name="first_name" placeholder="John" required /></Field>
+              <Field label="Last Name"><Input name="last_name" placeholder="Smith" required /></Field>
             </div>
+            <Field label="Email"><Input name="email" type="email" placeholder="you@provider.com" required /></Field>
+            <Field label="Password"><Input name="password" type="password" placeholder="••••••••" required /></Field>
 
-            <Field label="Email">
-              <Input type="email" placeholder="you@provider.com" value={form.email} onChange={(e) => set("email", e.target.value)} />
-            </Field>
-
-            {/* Identity & licensing */}
-            <div className="grid sm:grid-cols-2 gap-4 mt-4">
-              <div>
-                <label className="block text-sm font-medium text-slate-700">License Number (required)</label>
-                <Input placeholder="MDCN/123456" value={form.license_number} onChange={(e) => set("license_number", e.target.value)} />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700">License Council (optional)</label>
+            {/* Licensing (required) */}
+            <div className="grid sm:grid-cols-2 gap-4">
+              <Field label="Provider Type">
                 <select
+                  name="provider_type"
+                  required
                   className="mt-1 w-full rounded-xl border px-3 py-2 outline-none focus:ring-2 ring-blue-200"
-                  value={form.license_council}
-                  onChange={(e) => set("license_council", e.target.value)}
+                  defaultValue="DOCTOR"
                 >
-                  <option value="">Default (MDCN)</option>
-                  <option value="MDCN">MDCN (Medical & Dental)</option>
-                  <option value="NMCN">NMCN (Nursing & Midwifery)</option>
-                  <option value="PCN">PCN (Pharmacists Council)</option>
-                  <option value="MLSCN">MLSCN (Med. Lab. Science)</option>
-                  <option value="RAD">RAD (Radiographers)</option>
+                  {PROVIDER_TYPES.map((pt) => <option key={pt.value} value={pt.value}>{pt.label}</option>)}
                 </select>
-              </div>
-            </div>
-
-            <div className="grid sm:grid-cols-2 gap-4 mt-4">
-              <div>
-                <label className="block text-sm font-medium text-slate-700">Provider Type (optional)</label>
+              </Field>
+              <Field label="License Council">
                 <select
+                  name="license_council"
+                  required
                   className="mt-1 w-full rounded-xl border px-3 py-2 outline-none focus:ring-2 ring-blue-200"
-                  value={form.provider_type}
-                  onChange={(e) => set("provider_type", e.target.value)}
+                  defaultValue="MDCN"
                 >
-                  <option value="">Default (Doctor)</option>
-                  <option value="DOCTOR">Doctor</option>
-                  <option value="NURSE">Nurse</option>
-                  <option value="PHARMACIST">Pharmacist</option>
-                  <option value="DENTIST">Dentist</option>
-                  <option value="LAB_SCIENTIST">Lab Scientist</option>
-                  <option value="RADIOGRAPHER">Radiographer</option>
-                  {/* add others if your enums include them */}
+                  {COUNCILS.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
                 </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700">License Expiry (optional)</label>
-                <Input type="date" value={form.license_expiry} onChange={(e) => set("license_expiry", e.target.value)} />
-              </div>
+              </Field>
             </div>
+            <Field label="License Number"><Input name="license_number" placeholder="MDCN/123456" required /></Field>
 
-            {/* Experience / bio */}
-            <div className="grid sm:grid-cols-2 gap-4 mt-4">
-              <div>
-                <label className="block text-sm font-medium text-slate-700">Years of Experience (optional)</label>
-                <Input type="number" min="0" step="1" placeholder="0" value={form.years_experience} onChange={(e) => set("years_experience", e.target.value)} />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700">Consultation Fee (optional)</label>
-                <Input type="number" min="0" step="0.01" placeholder="0.00" value={form.consultation_fee} onChange={(e) => set("consultation_fee", e.target.value)} />
-              </div>
+            {/* Optional profile fields */}
+            <div className="grid sm:grid-cols-2 gap-4">
+              <Field label="License Expiry (optional)"><Input name="license_expiry" type="date" /></Field>
+              <Field label="Years of Experience (optional)"><Input name="years_experience" type="number" min="0" step="1" /></Field>
             </div>
-
+            <Field label="Consultation Fee (optional)"><Input name="consultation_fee" type="number" min="0" step="0.01" /></Field>
             <Field label="Bio (optional)">
-              <textarea
-                className="mt-1 w-full rounded-xl border px-3 py-2 outline-none focus:ring-2 ring-blue-200 min-h-[90px]"
-                placeholder="Short professional summary…"
-                value={form.bio}
-                onChange={(e) => set("bio", e.target.value)}
-              />
+              <textarea name="bio" className="mt-1 w-full rounded-xl border px-3 py-2 outline-none focus:ring-2 ring-blue-200 min-h-[90px]" />
             </Field>
 
-            {/* Contact & address */}
-            <Field label="Phone (optional, E.164)">
-              <Input placeholder="+2348012345678" value={form.phone} onChange={(e) => set("phone", e.target.value)} />
+            {/* Contact & address (optional) */}
+            <Field label="Phone (E.164, optional)"><Input name="phone" placeholder="+2348012345678" /></Field>
+            <div className="grid sm:grid-cols-3 gap-4">
+              <Field label="Country"><Input name="country" placeholder="Nigeria" /></Field>
+              <Field label="State"><Input name="state" placeholder="Lagos" /></Field>
+              <Field label="LGA"><Input name="lga" placeholder="Ikeja" /></Field>
+            </div>
+            <Field label="Address (optional)">
+              <textarea name="address" className="mt-1 w-full rounded-xl border px-3 py-2 outline-none focus:ring-2 ring-blue-200 min-h-[70px]" />
             </Field>
 
-            <div className="grid sm:grid-cols-3 gap-4 mt-4">
-              <div>
-                <label className="block text-sm font-medium text-slate-700">Country</label>
-                <Input placeholder="Nigeria" value={form.country} onChange={(e) => set("country", e.target.value)} />
+            {/* Specialties => names[] */}
+            <Field label="Specialties (hold Ctrl/Cmd to multi-select)">
+              <select
+                name="specialties_names"
+                multiple
+                className="mt-1 h-32 w-full rounded-xl border px-3 py-2 outline-none focus:ring-2 ring-blue-200"
+              >
+                {specialties.map((s) => (
+                  <option key={s.id} value={s.name}>{s.name}</option>
+                ))}
+              </select>
+            </Field>
+
+            {/* Documents (ProviderDocument: kind + file) */}
+            <div className="grid gap-4">
+              <div className="grid sm:grid-cols-2 gap-4">
+                <Field label="Document 1 - Kind">
+                  <select name="doc1_kind" className="mt-1 w-full rounded-xl border px-3 py-2">
+                    <option value="LICENSE">LICENSE</option>
+                    <option value="ID">ID</option>
+                    <option value="CERT">CERT</option>
+                  </select>
+                </Field>
+                <Field label="File">
+                  <input name="doc1_file" type="file" accept=".pdf,image/*" className="mt-1 w-full rounded-xl border px-3 py-2" />
+                </Field>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700">State</label>
-                <Input placeholder="Lagos" value={form.state} onChange={(e) => set("state", e.target.value)} />
+
+              <div className="grid sm:grid-cols-2 gap-4">
+                <Field label="Document 2 - Kind">
+                  <select name="doc2_kind" className="mt-1 w-full rounded-xl border px-3 py-2">
+                    <option value="LICENSE">LICENSE</option>
+                    <option value="ID">ID</option>
+                    <option value="CERT">CERT</option>
+                  </select>
+                </Field>
+                <Field label="File">
+                  <input name="doc2_file" type="file" accept=".pdf,image/*" className="mt-1 w-full rounded-xl border px-3 py-2" />
+                </Field>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700">LGA</label>
-                <Input placeholder="Ikeja" value={form.lga} onChange={(e) => set("lga", e.target.value)} />
+
+              <div className="grid sm:grid-cols-2 gap-4">
+                <Field label="Document 3 - Kind">
+                  <select name="doc3_kind" className="mt-1 w-full rounded-xl border px-3 py-2">
+                    <option value="LICENSE">LICENSE</option>
+                    <option value="ID">ID</option>
+                    <option value="CERT">CERT</option>
+                  </select>
+                </Field>
+                <Field label="File">
+                  <input name="doc3_file" type="file" accept=".pdf,image/*" className="mt-1 w-full rounded-xl border px-3 py-2" />
+                </Field>
               </div>
             </div>
-
-            <Field label="Address (optional)">
-              <textarea
-                className="mt-1 w-full rounded-xl border px-3 py-2 outline-none focus:ring-2 ring-blue-200 min-h-[70px]"
-                placeholder="Street, area, nearest landmark…"
-                value={form.address}
-                onChange={(e) => set("address", e.target.value)}
-              />
-            </Field>
-
-            {/* Specialties */}
-            <Field label="Specialty IDs (optional, comma separated)">
-              <Input
-                placeholder="e.g. 1,2,7"
-                value={form.specialties}
-                onChange={(e) => set("specialties", e.target.value)}
-              />
-            </Field>
-
-            {/* Passwords */}
-            <Field label="Password">
-              <Input type="password" placeholder="••••••••" value={form.password} onChange={(e) => set("password", e.target.value)} />
-            </Field>
-            <Field label="Confirm Password">
-              <Input type="password" placeholder="••••••••" value={form.password2} onChange={(e) => set("password2", e.target.value)} />
-            </Field>
 
             <button type="submit" disabled={sub} className="mt-6 w-full btn btn-primary disabled:opacity-60">
               {sub ? "Creating…" : "Create Provider Account"}
